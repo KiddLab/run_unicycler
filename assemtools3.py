@@ -95,6 +95,18 @@ def check_prog_paths(myData):
     if shutil.which('RepeatMasker') is None:
         print('RepeatMasker not found in path! please fix (module load?)')
         sys.exit()
+
+    print('Checking Rscript...')
+    if shutil.which('Rscript') is None:
+        print('Rscript not found in path! please fix (module load?)')
+        sys.exit()
+
+    print('Checking cutadapt...')
+    if shutil.which('cutadapt') is None:
+        print('cutadapt not found in path! please fix (module load?)')
+        sys.exit()
+
+
 #####################################################################
 # read top line of blat PSL file
 def read_top_blat_line(pslFileName):
@@ -167,6 +179,22 @@ def revcomp(seq):
     c = ''.join(seq)
     return c
 ##############################################################################
+#####################################################################
+def run_cutadapt(myData):
+    myData['cutadpt.fq1_1'] = myData['outDirBase'] + 'lib1.R1.cutadapt.fq.gz'
+    myData['cutadpt.fq1_2'] = myData['outDirBase'] + 'lib1.R2.cutadapt.fq.gz'
+
+
+    cmd = 'cutadapt --match-read-wildcards --discard-trimmed -g GATCGGAAGAGC -G GATCGGAAGAGC '
+    cmd += ' -o %s -p %s %s %s' % (myData['cutadpt.fq1_1'], myData['cutadpt.fq1_2'],myData['fqR1'],myData['fqR2'])     
+    if os.path.isfile(myData['cutadpt.fq1_1']) is False:
+        print('running cutadpt for Illumina reads')
+        print(cmd)
+        runCMD(cmd)
+    else:
+        print('looks like cutadpt already ran for Illumina reads')
+#####################################################################
+
 
 
 
