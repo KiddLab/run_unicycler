@@ -37,6 +37,18 @@ def runCMD(cmd):
 def runCMDNoFail(cmd):
     val = subprocess.Popen(cmd, shell=True).wait()
 ###############################################################################
+def get_4l_record(myFile):
+    #fastq style file...
+    # just return sequence len
+    # -1 if last record
+    myLine1 = myFile.readline()
+    if myLine1 == '':
+        return ''
+    myLine2 = myFile.readline()
+    myLine3 = myFile.readline()
+    myLine4 = myFile.readline()
+    return [myLine1,myLine2,myLine3,myLine4]
+###############################################################################
 def read_fasta_file_to_list(fastaFile):
     myDict = {}
     inFile = open(fastaFile,'r')
@@ -105,6 +117,12 @@ def check_prog_paths(myData):
     if shutil.which('cutadapt') is None:
         print('cutadapt not found in path! please fix (module load?)')
         sys.exit()
+
+    print('Checking picard environmental variable...')
+    if 'PICARD_JARS' not in os.environ:
+        print('PICARD_JARS not set! please fix (module load?)')
+        sys.exit()
+
 
 
 #####################################################################
@@ -179,7 +197,6 @@ def revcomp(seq):
     c = ''.join(seq)
     return c
 ##############################################################################
-#####################################################################
 def run_cutadapt(myData):
     myData['cutadpt.fq1_1'] = myData['outDirBase'] + 'lib1.R1.cutadapt.fq.gz'
     myData['cutadpt.fq1_2'] = myData['outDirBase'] + 'lib1.R2.cutadapt.fq.gz'
@@ -194,8 +211,83 @@ def run_cutadapt(myData):
     else:
         print('looks like cutadpt already ran for Illumina reads')
 #####################################################################
+def filter_contam_illumina(myData):
+    tmpBam = myData['outDirBase'] + 'tmp.ilm.bam'
+    myData['ilmContamBam'] = myData['outDirBase'] + 'ilmContam.sort.bam'
+    myData['ilmContamBam_met'] = myData['outDirBase'] + 'ilmContam.sort.size_metrics.txt'    
+    myData['ilmContamBam_hist'] = myData['outDirBase'] + 'ilmContam.sort.size_metrics.pdf'        
+    myData['ilmContamBam_mappednames'] = myData['outDirBase'] + 'ilmContam.sort.mapped_names.txt'            
+
+    myData['ilmFilt_1'] = myData['outDirBase'] + 'ilmFilter.R1.gz'            
+    myData['ilmFilt_2'] = myData['outDirBase'] + 'ilmFilter.R2.gz'            
+
+    
+    
+    
+    cmd = 'bwa mem %s %s %s | samtools view -b -o %s -' % (myData['contam'],myData['cutadpt.fq1_1'],myData['cutadpt.fq1_2'],tmpBam)
+    print(cmd)
+#    runCMD(cmd)
+
+    cmd = 'java -Xmx4g -jar $PICARD_JARS/picard.jar SortSam I=%s O=%s SORT_ORDER=coordinate' % (tmpBam,myData['ilmContamBam'])
+    print(cmd)
+#    runCMD(cmd)
+
+    cmd = 'samtools index %s' % (myData['ilmContamBam'])
+    print(cmd)
+#    runCMD(cmd)
+
+    cmd = 'rm %s' % tmpBam
+    print(cmd)
+#    runCMD(cmd)
+    
+    
+    cmd = 'java -Xmx4g -jar $PICARD_JARS/picard.jar CollectInsertSizeMetrics I=%s O=%s H=%s' % (myData['ilmContamBam'],myData['ilmContamBam_met'],myData['ilmContamBam_hist'])
+    print(cmd)
+#    runCMD(cmd)
+    
+    
+    cmd = 'samtools view -F 4 %s | cut -f 1 | sort | uniq > %s' % (myData['ilmContamBam'],myData['ilmContamBam_mappednames'])
+    print(cmd)
+#    runCMD(cmd)
+
+    toDrop = {}
+    inFile = open(myData['ilmContamBam_mappednames'],'r')
+    for line in inFile:
+        line = line.rstrip()
+        toDrop[line] = 1
+    inFile.close()
+    print('Read in %i illumina read names to drop' % len(toDrop))
 
 
+    inFq1 = gzip.open(myData['cutadpt.fq1_1'])
+    inFq2 = gzip.open(myData['cutadpt.fq1_2'])
+    
+    while True:
+        r1 = get_4l_record(inFq1)
+        r2 = get_4l_record(inFq2)
+        if r1 == '':
+            break
+        n1 = r1[0].rstrip()
+        n1 = n1[1:].split()[0]
+        n2 = r2[0].rstrip()
+        n2 = n2[1:].split()[0]
+        
+        if n1 != n2:
+            print('Names do not match!',n1,n2)
+            sys.exit()
+    
+    
+    
+    inFq1.close()
+    inFq2.close()
+
+
+
+
+
+
+
+#####################################################################
 
 
 
