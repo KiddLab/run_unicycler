@@ -123,6 +123,14 @@ def check_prog_paths(myData):
         print('PICARD_JARS not set! please fix (module load?)')
         sys.exit()
 
+    print('minimap2')
+    if shutil.which('minimap2') is None:
+        print('minimap2 not found in path! please fix (module load?)')
+        sys.exit()
+
+
+
+
 
 
 #####################################################################
@@ -220,9 +228,6 @@ def filter_contam_illumina(myData):
 
     myData['ilmFilt_1'] = myData['outDirBase'] + 'ilmFilter.R1.gz'            
     myData['ilmFilt_2'] = myData['outDirBase'] + 'ilmFilter.R2.gz'            
-
-    
-    
     
     cmd = 'bwa mem %s %s %s | samtools view -b -o %s -' % (myData['contam'],myData['cutadpt.fq1_1'],myData['cutadpt.fq1_2'],tmpBam)
     print(cmd)
@@ -240,7 +245,7 @@ def filter_contam_illumina(myData):
     print(cmd)
 #    runCMD(cmd)
     
-    
+   
     cmd = 'java -Xmx4g -jar $PICARD_JARS/picard.jar CollectInsertSizeMetrics I=%s O=%s H=%s' % (myData['ilmContamBam'],myData['ilmContamBam_met'],myData['ilmContamBam_hist'])
     print(cmd)
 #    runCMD(cmd)
@@ -261,15 +266,18 @@ def filter_contam_illumina(myData):
 
     inFq1 = gzip.open(myData['cutadpt.fq1_1'],'rt')
     inFq2 = gzip.open(myData['cutadpt.fq1_2'],'rt')
-
     outFq1 = gzip.open(myData['ilmFilt_1'],'wt')
     outFq2 = gzip.open(myData['ilmFilt_2'],'wt')    
+    
+    numDrop = 0
+    numWrite = 0
     
     while True:
         r1 = get_4l_record(inFq1)
         r2 = get_4l_record(inFq2)
         if r1 == '':
             break
+        
         n1 = r1[0].rstrip()
         n1 = n1[1:].split()[0]
         n2 = r2[0].rstrip()
@@ -279,23 +287,27 @@ def filter_contam_illumina(myData):
             print('Names do not match!',n1,n2)
             sys.exit()
         
-        numDrop = 0
-        numWrite = 0
         if n1 in toDrop:
             numDrop +=1
         else:
-            numWrite+=1
+            numWrite +=1
             outFq1.write('%s\n%s\n%s\n%s\n' % (r1[0],r1[1],r1[2],r1[3]))
             outFq2.write('%s\n%s\n%s\n%s\n' % (r2[0],r2[1],r2[2],r2[3]))
+            
     inFq1.close()
     inFq2.close()
     outFq1.close()
-    outFq2.cose()
-    print('Searched for contamin\n')
-    print('Total read pairs: %i\n' % numDrop+numWrite)
-    print('Removed: %i  %f' % numDrop/(numDrop+numWrite))
-    print('Kept: %i  %f' % numWrite/(numDrop+numWrite))    
+    outFq2.close()
+    print('Searched for contamin')
+    print('Total read pairs: %i' % (numDrop+numWrite) )
+    print('Removed: %i  %f' % (numDrop, numDrop/(numDrop+numWrite)))
+    print('Kept: %i  %f' % (numWrite, numWrite/(numDrop+numWrite)))
 #####################################################################
+def filter_contam_longread(myData):
+    myData['longReadContam'] = myData['outDirBase'] + 'longread.contam.psl'
 
 
+
+
+#####################################################################
 

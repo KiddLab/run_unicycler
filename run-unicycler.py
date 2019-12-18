@@ -11,6 +11,7 @@ parser.add_argument('--outDirBase', type=str,help='Path to output directory',req
 parser.add_argument('--name', type=str,help='name of project',required=True)
 parser.add_argument('--fqR1', type=str,help='Illumina Read 1 File',required=True)
 parser.add_argument('--fqR2', type=str,help='Illumina Read 2 File',required=True)
+parser.add_argument('--longread', type=str,help='file of long reads',required=True)
 parser.add_argument('--contam', type=str,help='fasta of contamination (E. coli), with bwa mem index',required=True)
 
 
@@ -23,6 +24,8 @@ myData['outDirBase'] = args.outDirBase
 myData['name'] = args.name 
 myData['fqR1'] = args.fqR1 
 myData['fqR2'] = args.fqR2 
+myData['longread'] = args.longread 
+myData['longreadtype'] = 'ont' # for now, only option is oxford nanopore
 myData['contam'] = args.contam 
 
 
@@ -44,6 +47,7 @@ assemtools3.run_cutadapt(myData)
 
 # step 2, remove reads that map to E. coli
 assemtools3.filter_contam_illumina(myData)
+assemtools3.filter_contam_longread(myData)
 
 
 
