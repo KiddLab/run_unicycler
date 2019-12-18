@@ -123,12 +123,22 @@ def check_prog_paths(myData):
         print('PICARD_JARS not set! please fix (module load?)')
         sys.exit()
 
-    print('minimap2')
+    print('Checking minimap2...')
     if shutil.which('minimap2') is None:
         print('minimap2 not found in path! please fix (module load?)')
         sys.exit()
 
+    # requirements for running unicycler
+    for n in ['bowtie2','racon','spades','tblastx','unicycler']:
+        print('Checking %s...' % n)
+        if shutil.which(n) is None:
+            print('%s not found in path! please fix (module load?)' % n)
+            sys.exit()
 
+    print('Checking Pilon environmental variable...')
+    if 'PILON_JARS' not in os.environ:
+        print('PILON_JARS not set! please fix (module load?)')
+        sys.exit()
 
 
 
@@ -225,35 +235,40 @@ def filter_contam_illumina(myData):
     myData['ilmContamBam_met'] = myData['outDirBase'] + 'ilmContam.sort.size_metrics.txt'    
     myData['ilmContamBam_hist'] = myData['outDirBase'] + 'ilmContam.sort.size_metrics.pdf'        
     myData['ilmContamBam_mappednames'] = myData['outDirBase'] + 'ilmContam.sort.mapped_names.txt'            
-
-    myData['ilmFilt_1'] = myData['outDirBase'] + 'ilmFilter.R1.gz'            
-    myData['ilmFilt_2'] = myData['outDirBase'] + 'ilmFilter.R2.gz'            
+    
+    myData['ilmFilt_1'] = myData['outDirBase'] + 'ilmFilter.R1.fq.gz'             
+    myData['ilmFilt_2'] = myData['outDirBase'] + 'ilmFilter.R2.fq.gz'            
+    
+    
+    # check to see if already ran
+    if os.path.isfile(myData['ilmFilt_1']) and os.path.getsize(myData['ilmFilt_1']) > 0:
+        print('Already ran Illumina filter contamination!')
+        return
     
     cmd = 'bwa mem %s %s %s | samtools view -b -o %s -' % (myData['contam'],myData['cutadpt.fq1_1'],myData['cutadpt.fq1_2'],tmpBam)
     print(cmd)
-#    runCMD(cmd)
+    runCMD(cmd)
 
     cmd = 'java -Xmx4g -jar $PICARD_JARS/picard.jar SortSam I=%s O=%s SORT_ORDER=coordinate' % (tmpBam,myData['ilmContamBam'])
     print(cmd)
-#    runCMD(cmd)
+    runCMD(cmd)
 
     cmd = 'samtools index %s' % (myData['ilmContamBam'])
     print(cmd)
-#    runCMD(cmd)
+    runCMD(cmd)
 
     cmd = 'rm %s' % tmpBam
     print(cmd)
-#    runCMD(cmd)
-    
-   
+    runCMD(cmd)
+       
     cmd = 'java -Xmx4g -jar $PICARD_JARS/picard.jar CollectInsertSizeMetrics I=%s O=%s H=%s' % (myData['ilmContamBam'],myData['ilmContamBam_met'],myData['ilmContamBam_hist'])
     print(cmd)
-#    runCMD(cmd)
+    runCMD(cmd)
     
     
     cmd = 'samtools view -F 4 %s | cut -f 1 | sort | uniq > %s' % (myData['ilmContamBam'],myData['ilmContamBam_mappednames'])
     print(cmd)
-#    runCMD(cmd)
+    runCMD(cmd)
 
     toDrop = {}
     inFile = open(myData['ilmContamBam_mappednames'],'r')
@@ -291,23 +306,90 @@ def filter_contam_illumina(myData):
             numDrop +=1
         else:
             numWrite +=1
-            outFq1.write('%s\n%s\n%s\n%s\n' % (r1[0],r1[1],r1[2],r1[3]))
-            outFq2.write('%s\n%s\n%s\n%s\n' % (r2[0],r2[1],r2[2],r2[3]))
+            outFq1.write('%s%s%s%s' % (r1[0],r1[1],r1[2],r1[3]))
+            outFq2.write('%s%s%s%s' % (r2[0],r2[1],r2[2],r2[3]))
             
     inFq1.close()
     inFq2.close()
     outFq1.close()
     outFq2.close()
-    print('Searched for contamin')
+    print('\nSearched for contamination in short reads')
     print('Total read pairs: %i' % (numDrop+numWrite) )
     print('Removed: %i  %f' % (numDrop, numDrop/(numDrop+numWrite)))
     print('Kept: %i  %f' % (numWrite, numWrite/(numDrop+numWrite)))
 #####################################################################
 def filter_contam_longread(myData):
     myData['longReadContam'] = myData['outDirBase'] + 'longread.contam.psl'
+    myData['longReadFilt'] = myData['outDirBase'] + 'longread.filt.fq.gz'   
+    myData['longReadFiltFail'] = myData['outDirBase'] + 'longread.fail.fq.gz'   
+    
+    # check to see if already ran
+    if os.path.isfile(myData['longReadFilt']) and os.path.getsize(myData['longReadFilt']) > 0:
+        print('Already ran long read filter contamination!')
+        return
+    
+    if myData['longreadtype'] == 'ont':
+       mapX = 'map-ont'
+    else:
+       print('uknown long read type, option not clear')
+       print(myData['longreadtype'])
+       sys.exit()
+    
+    cmd = 'minimap2 -t 1 -x %s %s %s > %s ' % (mapX,myData['contam'],myData['longread'],myData['longReadContam'] )
+    print(cmd)
+    runCMD(cmd)
+    
+    toDrop = {}
+    inFile = open(myData['longReadContam'],'r')
+    for line in inFile:
+        line = line.rstrip()
+        n = line.split()[0]
+        toDrop[n] = 0
+    inFile.close()
+    print('Read in %i names of long reads' % len(toDrop))
+    
+    inFile = gzip.open(myData['longread'],'rt')
+    outPass = gzip.open(myData['longReadFilt'],'wt')
+    outFail = gzip.open(myData['longReadFiltFail'],'wt')
+    
+    numDrop = 0
+    numWrite = 0
+    
+    while True:
+        r1 = get_4l_record(inFile)
+        if r1 == '':
+            break
+        
+        n1 = r1[0].rstrip()
+        n1 = n1[1:].split()[0]
+        
+        if n1 in toDrop:
+            numDrop +=1
+            outFail.write('%s%s%s%s' % (r1[0],r1[1],r1[2],r1[3]))
+
+        else:
+            numWrite +=1
+            outPass.write('%s%s%s%s' % (r1[0],r1[1],r1[2],r1[3]))
+    inFile.close()
+    outPass.close()
+    outFail.close()
+    print('\nSearched for contamination in long reads!')
+    print('Total long reads: %i' % (numDrop+numWrite) )
+    print('Removed: %i  %f' % (numDrop, numDrop/(numDrop+numWrite)))
+    print('Kept: %i  %f' % (numWrite, numWrite/(numDrop+numWrite)))
+#####################################################################
+def run_unicycler_assem(myData):
+    print('\nstarting to run unicycler!')
+    cmd = 'unicycler -t 4 -1 %s -2 %s -l %s -o %s' % (myData['ilmFilt_1'],myData['ilmFilt_2'],myData['longReadFilt'],myData['outDirBase'])
+    print(cmd)
+    runCMD(cmd)
+
 
 
 
 
 #####################################################################
+
+
+
 

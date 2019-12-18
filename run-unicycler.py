@@ -49,6 +49,9 @@ assemtools3.run_cutadapt(myData)
 assemtools3.filter_contam_illumina(myData)
 assemtools3.filter_contam_longread(myData)
 
+# step 3, run unicycler assembly
+assemtools3.run_unicycler_assem(myData)
+
 
 
 
