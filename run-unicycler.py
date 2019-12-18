@@ -28,6 +28,8 @@ myData['longread'] = args.longread
 myData['longreadtype'] = 'ont' # for now, only option is oxford nanopore
 myData['contam'] = args.contam 
 
+myData['numThreads'] = 4 # for now
+
 
 # setup needed files
 if myData['outDirBase'][-1] != '/':

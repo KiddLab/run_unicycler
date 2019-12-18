@@ -108,10 +108,11 @@ def check_prog_paths(myData):
         print('RepeatMasker not found in path! please fix (module load?)')
         sys.exit()
 
-    print('Checking Rscript...')
-    if shutil.which('Rscript') is None:
-        print('Rscript not found in path! please fix (module load?)')
-        sys.exit()
+#skip R -- conflicts, will not make plots
+#    print('Checking Rscript...')
+#    if shutil.which('Rscript') is None:
+#        print('Rscript not found in path! please fix (module load?)')
+#        sys.exit()
 
     print('Checking cutadapt...')
     if shutil.which('cutadapt') is None:
@@ -184,6 +185,22 @@ def parse_blat_psl_line(line):
     blatLine['tStarts'] = line[20]
     return blatLine
 #####################################################################
+def parse_paf_line(line):
+    pafLine = {}
+    pafLine['qName'] = line[0]
+    pafLine['qLen'] = int(line[1])
+    pafLine['qStart'] = int(line[2])
+    pafLine['qEnd'] = int(line[3])
+    pafLine['strand'] = line[4]
+    pafLine['tName'] = line[5]
+    pafLine['tLen'] = int(line[6])
+    pafLine['tStart'] = int(line[7])
+    pafLine['tEnd'] = int(line[8])
+    pafLine['numMatch'] = int(line[9])
+    pafLine['alignBlockLen'] = int(line[10])
+    pafLine['mapQ'] = int(line[11])
+    return pafLine
+
 ##############################################################################
 # Returns complement of a bp.  If not ACGT then return same char
 def complement(c):
@@ -220,7 +237,7 @@ def run_cutadapt(myData):
     myData['cutadpt.fq1_2'] = myData['outDirBase'] + 'lib1.R2.cutadapt.fq.gz'
 
 
-    cmd = 'cutadapt --match-read-wildcards --discard-trimmed -g GATCGGAAGAGC -G GATCGGAAGAGC '
+    cmd = 'cutadapt -j %i --match-read-wildcards --discard-trimmed -g GATCGGAAGAGC -G GATCGGAAGAGC ' % myData['numThreads']
     cmd += ' -o %s -p %s %s %s' % (myData['cutadpt.fq1_1'], myData['cutadpt.fq1_2'],myData['fqR1'],myData['fqR2'])     
     if os.path.isfile(myData['cutadpt.fq1_1']) is False:
         print('running cutadpt for Illumina reads')
@@ -245,7 +262,7 @@ def filter_contam_illumina(myData):
         print('Already ran Illumina filter contamination!')
         return
     
-    cmd = 'bwa mem %s %s %s | samtools view -b -o %s -' % (myData['contam'],myData['cutadpt.fq1_1'],myData['cutadpt.fq1_2'],tmpBam)
+    cmd = 'bwa mem -t %i %s %s %s | samtools view -b -o %s -' % (myData['numThreads'],myData['contam'],myData['cutadpt.fq1_1'],myData['cutadpt.fq1_2'],tmpBam)
     print(cmd)
     runCMD(cmd)
 
@@ -261,11 +278,10 @@ def filter_contam_illumina(myData):
     print(cmd)
     runCMD(cmd)
        
-    cmd = 'java -Xmx4g -jar $PICARD_JARS/picard.jar CollectInsertSizeMetrics I=%s O=%s H=%s' % (myData['ilmContamBam'],myData['ilmContamBam_met'],myData['ilmContamBam_hist'])
-    print(cmd)
-    runCMD(cmd)
-    
-    
+#    cmd = 'java -Xmx4g -jar $PICARD_JARS/picard.jar CollectInsertSizeMetrics I=%s O=%s H=%s' % (myData['ilmContamBam'],myData['ilmContamBam_met'],myData['ilmContamBam_hist'])
+#    print(cmd)
+#    runCMD(cmd)
+        
     cmd = 'samtools view -F 4 %s | cut -f 1 | sort | uniq > %s' % (myData['ilmContamBam'],myData['ilmContamBam_mappednames'])
     print(cmd)
     runCMD(cmd)
@@ -277,7 +293,6 @@ def filter_contam_illumina(myData):
         toDrop[line] = 1
     inFile.close()
     print('Read in %i illumina read names to drop' % len(toDrop))
-
 
     inFq1 = gzip.open(myData['cutadpt.fq1_1'],'rt')
     inFq2 = gzip.open(myData['cutadpt.fq1_2'],'rt')
@@ -319,7 +334,7 @@ def filter_contam_illumina(myData):
     print('Kept: %i  %f' % (numWrite, numWrite/(numDrop+numWrite)))
 #####################################################################
 def filter_contam_longread(myData):
-    myData['longReadContam'] = myData['outDirBase'] + 'longread.contam.psl'
+    myData['longReadContam'] = myData['outDirBase'] + 'longread.contam.paf'
     myData['longReadFilt'] = myData['outDirBase'] + 'longread.filt.fq.gz'   
     myData['longReadFiltFail'] = myData['outDirBase'] + 'longread.fail.fq.gz'   
     
@@ -343,8 +358,11 @@ def filter_contam_longread(myData):
     inFile = open(myData['longReadContam'],'r')
     for line in inFile:
         line = line.rstrip()
-        n = line.split()[0]
-        toDrop[n] = 0
+        line = line.split()
+        pafLine = parse_paf_line(line)
+        
+        if((pafLine['numMatch']/pafLine['qLen']) > 0.25):
+            toDrop[pafLine['qName']] = 0
     inFile.close()
     print('Read in %i names of long reads' % len(toDrop))
     
@@ -379,17 +397,102 @@ def filter_contam_longread(myData):
     print('Kept: %i  %f' % (numWrite, numWrite/(numDrop+numWrite)))
 #####################################################################
 def run_unicycler_assem(myData):
+    myData['originalAssem'] = myData['outDirBase'] + 'assembly.fasta'
+    myData['assemFa'] = myData['originalAssem']
+    if os.path.isfile(myData['originalAssem']) is True:
+        print('assembly exists, skipping run_unicycler_assem step!')
+        return        
     print('\nstarting to run unicycler!')
-    cmd = 'unicycler -t 4 -1 %s -2 %s -l %s -o %s' % (myData['ilmFilt_1'],myData['ilmFilt_2'],myData['longReadFilt'],myData['outDirBase'])
+    cmd = 'unicycler -t %i -1 %s -2 %s -l %s -o %s' % (myData['numThreads'],myData['ilmFilt_1'],myData['ilmFilt_2'],myData['longReadFilt'],myData['outDirBase'])
     print(cmd)
     runCMD(cmd)
-
-
-
-
-
 #####################################################################
+def do_rotate_circle(myData):
+    # run blat of target vs assembly, to determine what the correct orientation is
+    myData['blatOutFile'] = myData['assemFa'] + '.blatTMP'
+    cmd = 'blat %s %s %s' % (myData['assemFa'],myData['targetFa'],myData['blatOutFile'])
+    print(cmd)
+    runCMD(cmd)
+    blatLine = assemtools3.read_top_blat_line(myData['blatOutFile'])
+    if blatLine['strand'] == '-':
+        print('Need to make reverse complement of sequence!')
+        myData['assemFa'] = myData['originalAssem'] + '.rc.fa'
+        fastaSeqs = assemtools3.read_fasta_file_to_dict(myData['originalAssem'])
+    #    print(fastaSeqs)
+        name = list(fastaSeqs.keys())[0]
+        seq = fastaSeqs[name]['seq']
+        seq = revcomp(seq)
+        seq = add_breaks_to_line(seq,n=100)
+        print('seq name is',name)
+        outFile = open(myData['assemFa'],'w')
+        outFile.write('>%s\n' % (name))
+        outFile.write(seq)
+        outFile.close()
+    
+        # then, need to redo the blat
+        myData['blatOutFile'] = myData['assemFa'] + '.blatTMP'
+        cmd = 'blat %s %s %s' % (myData['assemFa'],myData['targetFa'],myData['blatOutFile'])
+        print(cmd)
+        runCMD(cmd)
+        blatLine = read_top_blat_line(myData['blatOutFile'])
 
+    # print out stats of where the query is 
+    print('query size',blatLine['qSize'])
+    print('target size',blatLine['tSize'])
+    print('q hit:',blatLine['qStart'],'-',blatLine['qEnd'])
+    print('t hit:',blatLine['tStart'],'-',blatLine['tEnd'])
 
+    # check the size hit
+    if(blatLine['qEnd'] - blatLine['qStart']) != blatLine['qSize']:
+        print('Did not account for whole length in single hit.  What to do???')
+        sys.exit()
+
+    # for now, will assume that the vector sequence is not across the circle junction -- that would be a complication
+    # will do the coordinates in 1 base system, not bed/psl
+    tStart = blatLine['tStart'] + 1
+    fastaSeqs = assemtools3.read_fasta_file_to_dict(myData['assemFa'])
+    name = list(fastaSeqs.keys())[0]
+    newName = name.split()[0] # simplify the name
+
+    originalSeq = fastaSeqs[name]['seq']
+    print(tStart)
+    part1 = originalSeq[tStart-1:]  # starts at the original seq
+    part2 = originalSeq[0:tStart-1]
+    print('p1 len',len(part1))
+    print('p2 len',len(part2))
+    print('total',len(part1) + len(part2))
+
+    outFile = open(myData['rotatedFa'],'w')
+    outFile.write('>%s\n' % (newName))
+    seq = part1 + part2
+    seq = assemtools3.add_breaks_to_line(seq,n=100)
+    outFile.write(seq)
+    outFile.close()
+
+    myData['rotatedFaBlatOutFile'] = myData['rotatedFa']+ '.blat'
+    cmd = 'blat %s %s %s' % (myData['rotatedFa'],myData['targetFa'],myData['rotatedFaBlatOutFile'])
+    print(cmd)
+    assemtools3.runCMD(cmd)
+    blatLine = assemtools3.read_top_blat_line(myData['rotatedFaBlatOutFile'])
+
+    if myData['doClean'] is True:
+        print('making version without the vector!')
+        print('query size',blatLine['qSize'])
+        print('target size',blatLine['tSize'])
+        print('q hit:',blatLine['qStart'],'-',blatLine['qEnd'])
+        print('t hit:',blatLine['tStart'],'-',blatLine['tEnd'])
+    
+        fastaSeqs = assemtools3.read_fasta_file_to_dict(myData['rotatedFa'])
+        name = list(fastaSeqs.keys())[0]
+        seq = fastaSeqs[name]['seq']
+    
+        #tEnd is in bedFormat -- so can use directly, will get the next base...
+        newSeq = seq[blatLine['tEnd']:]
+        newSeq = assemtools3.add_breaks_to_line(newSeq,n=100)
+        outFile = open(myData['rotatedCleanFa'],'w')
+        outFile.write('>%s\n' % (name))
+        outFile.write(newSeq)
+        outFile.close()
+#####################################################################
 
 
