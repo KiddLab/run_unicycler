@@ -98,11 +98,6 @@ def check_prog_paths(myData):
         print('blat not found in path! please fix (module load?)')
         sys.exit()
 
-    print('Checking RepeatMasker...')
-    if shutil.which('RepeatMasker') is None:
-        print('RepeatMasker not found in path! please fix (module load?)')
-        sys.exit()
-
     print('Checking cutadapt...')
     if shutil.which('cutadapt') is None:
         print('cutadapt not found in path! please fix (module load?)')
