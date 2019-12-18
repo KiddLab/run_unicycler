@@ -1,8 +1,6 @@
 # run_unicycler
 Pipeline to run Unicycler (https://github.com/rrwick/Unicycler) assembly on BACs
-Required Illumina + PacBio or Oxford Nanopore reads.
-
-First, filters out Illumina a
+with  Illumina short reads + PacBio or Oxford Nanopore long reads.
 
 There are several dependency programs required. On the UM Great Lakes Cluster,
 assuming you have access to the proper modules, they can be loaded with:
