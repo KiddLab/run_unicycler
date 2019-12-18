@@ -5,6 +5,7 @@ with  Illumina short reads + PacBio or Oxford Nanopore long reads.
 There are several dependency programs required. On the UM Great Lakes Cluster,
 assuming you have access to the proper modules, they can be loaded with:
 
+```
 module load picard
 module load bowtie2/2.3.4.3
 module load racon
@@ -13,7 +14,7 @@ module load spades/3.11.1
 module load ncbi-blast/2.9.0
 module load samtools
 module load minimap2
-
+```
 Other programs are also required to be in your path.  On Great Lakes load the module
 KiddLabCustom/2.0.
 
