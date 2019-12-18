@@ -13,7 +13,10 @@ parser.add_argument('--fqR1', type=str,help='Illumina Read 1 File',required=True
 parser.add_argument('--fqR2', type=str,help='Illumina Read 2 File',required=True)
 parser.add_argument('--longread', type=str,help='file of long reads',required=True)
 parser.add_argument('--contam', type=str,help='fasta of contamination (E. coli), with bwa mem index',required=True)
-
+parser.add_argument('--target',type=str,help='fasta file of sequnece to use for begining of rotated sequence',required=True)
+parser.add_argument('--clean', help='whether or not to make assembly file with the target sequence removed, default is TRUE',
+                               action='store_true')
+parser.add_argument('--threads',type=int,default=1,help='Number of threads to use, default is 1')
 
 
 args = parser.parse_args()
@@ -28,7 +31,9 @@ myData['longread'] = args.longread
 myData['longreadtype'] = 'ont' # for now, only option is oxford nanopore
 myData['contam'] = args.contam 
 
-myData['numThreads'] = 4 # for now
+myData['numThreads'] = args.threads 
+myData['targetFa']  = args.target 
+myData['doClean'] = args.clean
 
 
 # setup needed files
@@ -41,6 +46,7 @@ if os.path.isdir(myData['outDirBase']) is False:
     print(cmd)
     assemtools3.runCMD(cmd)
 
+print('Will run with %i threads!' % myData['numThreads'])
 assemtools3.check_prog_paths(myData)
 ###############################################################################
 
@@ -53,6 +59,9 @@ assemtools3.filter_contam_longread(myData)
 
 # step 3, run unicycler assembly
 assemtools3.run_unicycler_assem(myData)
+
+# step 4, rotate the circle -- hope that have single circular genome as input
+assemtools3.do_rotate_circle(myData)    
 
 
 

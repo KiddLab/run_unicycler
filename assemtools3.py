@@ -88,11 +88,6 @@ def read_fasta_file_to_dict(fastaFile):
 ###############################################################################
 # setup paths to default programs to use and checks for required programs
 def check_prog_paths(myData):    
-    print('Checking bwa...')
-    if shutil.which('bwa') is None:
-        print('bwa not found in path! please fix (module load?)')
-        sys.exit()
-
     print('Checking samtools...')
     if shutil.which('samtools') is None:
         print('samtools not found in path! please fix (module load?)')
@@ -107,12 +102,6 @@ def check_prog_paths(myData):
     if shutil.which('RepeatMasker') is None:
         print('RepeatMasker not found in path! please fix (module load?)')
         sys.exit()
-
-#skip R -- conflicts, will not make plots
-#    print('Checking Rscript...')
-#    if shutil.which('Rscript') is None:
-#        print('Rscript not found in path! please fix (module load?)')
-#        sys.exit()
 
     print('Checking cutadapt...')
     if shutil.which('cutadapt') is None:
@@ -140,9 +129,6 @@ def check_prog_paths(myData):
     if 'PILON_JARS' not in os.environ:
         print('PILON_JARS not set! please fix (module load?)')
         sys.exit()
-
-
-
 
 #####################################################################
 # read top line of blat PSL file
@@ -248,6 +234,7 @@ def run_cutadapt(myData):
 #####################################################################
 def filter_contam_illumina(myData):
     tmpBam = myData['outDirBase'] + 'tmp.ilm.bam'
+    tmpSam = myData['outDirBase'] + 'tmp.ilm.sam'
     myData['ilmContamBam'] = myData['outDirBase'] + 'ilmContam.sort.bam'
     myData['ilmContamBam_met'] = myData['outDirBase'] + 'ilmContam.sort.size_metrics.txt'    
     myData['ilmContamBam_hist'] = myData['outDirBase'] + 'ilmContam.sort.size_metrics.pdf'        
@@ -256,16 +243,28 @@ def filter_contam_illumina(myData):
     myData['ilmFilt_1'] = myData['outDirBase'] + 'ilmFilter.R1.fq.gz'             
     myData['ilmFilt_2'] = myData['outDirBase'] + 'ilmFilter.R2.fq.gz'            
     
-    
-    # check to see if already ran
     if os.path.isfile(myData['ilmFilt_1']) and os.path.getsize(myData['ilmFilt_1']) > 0:
         print('Already ran Illumina filter contamination!')
         return
-    
-    cmd = 'bwa mem -t %i %s %s %s | samtools view -b -o %s -' % (myData['numThreads'],myData['contam'],myData['cutadpt.fq1_1'],myData['cutadpt.fq1_2'],tmpBam)
-    print(cmd)
-    runCMD(cmd)
 
+
+    bowTie2Index = myData['contam'].replace('.fa','')
+    
+
+    cmd = 'bowtie2 -x ' + bowTie2Index + ' -p %i ' % myData['numThreads']
+    cmd += ' -1 %s -2 %s -S %s' % (myData['cutadpt.fq1_1'],myData['cutadpt.fq1_2'],tmpSam)
+    
+    print('\n%s\n' % cmd)
+    runCMD(cmd)
+    
+    cmd = 'samtools view -b %s > %s' % (tmpSam,tmpBam)
+    print('\n%s\n' % cmd)
+    runCMD(cmd)
+    
+    cmd = 'rm %s' % tmpSam
+    print('\n%s\n' % cmd)
+    runCMD(cmd)
+        
     cmd = 'java -Xmx4g -jar $PICARD_JARS/picard.jar SortSam I=%s O=%s SORT_ORDER=coordinate' % (tmpBam,myData['ilmContamBam'])
     print(cmd)
     runCMD(cmd)
@@ -278,10 +277,6 @@ def filter_contam_illumina(myData):
     print(cmd)
     runCMD(cmd)
        
-#    cmd = 'java -Xmx4g -jar $PICARD_JARS/picard.jar CollectInsertSizeMetrics I=%s O=%s H=%s' % (myData['ilmContamBam'],myData['ilmContamBam_met'],myData['ilmContamBam_hist'])
-#    print(cmd)
-#    runCMD(cmd)
-        
     cmd = 'samtools view -F 4 %s | cut -f 1 | sort | uniq > %s' % (myData['ilmContamBam'],myData['ilmContamBam_mappednames'])
     print(cmd)
     runCMD(cmd)
@@ -332,6 +327,7 @@ def filter_contam_illumina(myData):
     print('Total read pairs: %i' % (numDrop+numWrite) )
     print('Removed: %i  %f' % (numDrop, numDrop/(numDrop+numWrite)))
     print('Kept: %i  %f' % (numWrite, numWrite/(numDrop+numWrite)))
+        
 #####################################################################
 def filter_contam_longread(myData):
     myData['longReadContam'] = myData['outDirBase'] + 'longread.contam.paf'
@@ -398,7 +394,7 @@ def filter_contam_longread(myData):
 #####################################################################
 def run_unicycler_assem(myData):
     myData['originalAssem'] = myData['outDirBase'] + 'assembly.fasta'
-    myData['assemFa'] = myData['originalAssem']
+    myData['assemFa'] = myData['originalAssem']    
     if os.path.isfile(myData['originalAssem']) is True:
         print('assembly exists, skipping run_unicycler_assem step!')
         return        
@@ -408,6 +404,13 @@ def run_unicycler_assem(myData):
     runCMD(cmd)
 #####################################################################
 def do_rotate_circle(myData):
+    myData['rotatedFa'] = myData['originalAssem'] + '.rotate.fa'
+    myData['rotatedCleanFa'] = myData['originalAssem'] + '.rotate.clean.fa'
+
+    print('initial assembly:',myData['assemFa'])
+    print('portion to set at start:',myData['targetFa'])
+    print('make version without the target:',myData['doClean'])
+
     # run blat of target vs assembly, to determine what the correct orientation is
     myData['blatOutFile'] = myData['assemFa'] + '.blatTMP'
     cmd = 'blat %s %s %s' % (myData['assemFa'],myData['targetFa'],myData['blatOutFile'])
