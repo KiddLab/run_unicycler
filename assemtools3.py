@@ -259,8 +259,11 @@ def filter_contam_illumina(myData):
     print('Read in %i illumina read names to drop' % len(toDrop))
 
 
-    inFq1 = gzip.open(myData['cutadpt.fq1_1'])
-    inFq2 = gzip.open(myData['cutadpt.fq1_2'])
+    inFq1 = gzip.open(myData['cutadpt.fq1_1'],'rt')
+    inFq2 = gzip.open(myData['cutadpt.fq1_2'],'rt')
+
+    outFq1 = gzip.open(myData['ilmFilt_1'],'wt')
+    outFq2 = gzip.open(myData['ilmFilt_2'],'wt')    
     
     while True:
         r1 = get_4l_record(inFq1)
@@ -275,18 +278,23 @@ def filter_contam_illumina(myData):
         if n1 != n2:
             print('Names do not match!',n1,n2)
             sys.exit()
-    
-    
-    
+        
+        numDrop = 0
+        numWrite = 0
+        if n1 in toDrop:
+            numDrop +=1
+        else:
+            numWrite+=1
+            outFq1.write('%s\n%s\n%s\n%s\n' % (r1[0],r1[1],r1[2],r1[3]))
+            outFq2.write('%s\n%s\n%s\n%s\n' % (r2[0],r2[1],r2[2],r2[3]))
     inFq1.close()
     inFq2.close()
-
-
-
-
-
-
-
+    outFq1.close()
+    outFq2.cose()
+    print('Searched for contamin\n')
+    print('Total read pairs: %i\n' % numDrop+numWrite)
+    print('Removed: %i  %f' % numDrop/(numDrop+numWrite))
+    print('Kept: %i  %f' % numWrite/(numDrop+numWrite))    
 #####################################################################
 
 
