@@ -27,7 +27,7 @@ def runCMD(cmd):
     if val == 0:
         pass
     else:
-        print('command failed')
+        print('command failed', flush=True)
         print(cmd)
         sys.exit(1)
 ###############################################################################
@@ -55,7 +55,7 @@ def read_fasta_file_to_list(fastaFile):
     line = inFile.readline()
     line = line.rstrip()
     if line[0] != '>':
-        print('ERROR, FILE DOESNNOT START WITH >')
+        print('ERROR, FILE DOESNNOT START WITH >', flush=True)
         sys.exit()
     myName = line[1:]
     myDict[myName] = {}
@@ -90,39 +90,39 @@ def read_fasta_file_to_dict(fastaFile):
 def check_prog_paths(myData):    
     print('Checking samtools...')
     if shutil.which('samtools') is None:
-        print('samtools not found in path! please fix (module load?)')
+        print('samtools not found in path! please fix (module load?)', flush=True)
         sys.exit()
 
     print('Checking blat...')
     if shutil.which('blat') is None:
-        print('blat not found in path! please fix (module load?)')
+        print('blat not found in path! please fix (module load?)', flush=True)
         sys.exit()
 
     print('Checking cutadapt...')
     if shutil.which('cutadapt') is None:
-        print('cutadapt not found in path! please fix (module load?)')
+        print('cutadapt not found in path! please fix (module load?)', flush=True)
         sys.exit()
 
-    print('Checking picard environmental variable...')
+    print('Checking picard environmental variable...', flush=True)
     if 'PICARD_JARS' not in os.environ:
-        print('PICARD_JARS not set! please fix (module load?)')
+        print('PICARD_JARS not set! please fix (module load?)', flush=True)
         sys.exit()
 
     print('Checking minimap2...')
     if shutil.which('minimap2') is None:
-        print('minimap2 not found in path! please fix (module load?)')
+        print('minimap2 not found in path! please fix (module load?)', flush=True)
         sys.exit()
 
     # requirements for running unicycler
     for n in ['bowtie2','racon','spades','tblastx','unicycler']:
         print('Checking %s...' % n)
         if shutil.which(n) is None:
-            print('%s not found in path! please fix (module load?)' % n)
+            print('%s not found in path! please fix (module load?)' % n, flush=True)
             sys.exit()
 
-    print('Checking Pilon environmental variable...')
+    print('Checking Pilon environmental variable...', flush=True)
     if 'PILON_JARS' not in os.environ:
-        print('PILON_JARS not set! please fix (module load?)')
+        print('PILON_JARS not set! please fix (module load?)', flush=True)
         sys.exit()
 
 #####################################################################
@@ -221,11 +221,11 @@ def run_cutadapt(myData):
     cmd = 'cutadapt -j %i --match-read-wildcards --discard-trimmed -g GATCGGAAGAGC -G GATCGGAAGAGC ' % myData['numThreads']
     cmd += ' -o %s -p %s %s %s' % (myData['cutadpt.fq1_1'], myData['cutadpt.fq1_2'],myData['fqR1'],myData['fqR2'])     
     if os.path.isfile(myData['cutadpt.fq1_1']) is False:
-        print('running cutadpt for Illumina reads')
+        print('running cutadpt for Illumina reads', flush=True)
         print(cmd)
         runCMD(cmd)
     else:
-        print('looks like cutadpt already ran for Illumina reads')
+        print('looks like cutadpt already ran for Illumina reads', flush=True)
 #####################################################################
 def filter_contam_illumina(myData):
     tmpBam = myData['outDirBase'] + 'tmp.ilm.bam'
@@ -239,7 +239,7 @@ def filter_contam_illumina(myData):
     myData['ilmFilt_2'] = myData['outDirBase'] + 'ilmFilter.R2.fq.gz'            
     
     if os.path.isfile(myData['ilmFilt_1']) and os.path.getsize(myData['ilmFilt_1']) > 0:
-        print('Already ran Illumina filter contamination!')
+        print('Already ran Illumina filter contamination!', flush=True)
         return
 
 
@@ -253,27 +253,27 @@ def filter_contam_illumina(myData):
     runCMD(cmd)
     
     cmd = 'samtools view -b %s > %s' % (tmpSam,tmpBam)
-    print('\n%s\n' % cmd)
+    print('\n%s\n' % cmd, flush=True)
     runCMD(cmd)
     
     cmd = 'rm %s' % tmpSam
-    print('\n%s\n' % cmd)
+    print('\n%s\n' % cmd, flush=True)
     runCMD(cmd)
         
     cmd = 'java -Xmx4g -jar $PICARD_JARS/picard.jar SortSam I=%s O=%s SORT_ORDER=coordinate' % (tmpBam,myData['ilmContamBam'])
-    print(cmd)
+    print(cmd, flush=True)
     runCMD(cmd)
 
     cmd = 'samtools index %s' % (myData['ilmContamBam'])
-    print(cmd)
+    print(cmd, flush=True)
     runCMD(cmd)
 
     cmd = 'rm %s' % tmpBam
-    print(cmd)
+    print(cmd, flush=True)
     runCMD(cmd)
        
     cmd = 'samtools view -F 4 %s | cut -f 1 | sort | uniq > %s' % (myData['ilmContamBam'],myData['ilmContamBam_mappednames'])
-    print(cmd)
+    print(cmd, flush=True)
     runCMD(cmd)
 
     toDrop = {}
@@ -282,7 +282,7 @@ def filter_contam_illumina(myData):
         line = line.rstrip()
         toDrop[line] = 1
     inFile.close()
-    print('Read in %i illumina read names to drop' % len(toDrop))
+    print('Read in %i illumina read names to drop' % len(toDrop), flush=True)
 
     inFq1 = gzip.open(myData['cutadpt.fq1_1'],'rt')
     inFq2 = gzip.open(myData['cutadpt.fq1_2'],'rt')
@@ -304,7 +304,7 @@ def filter_contam_illumina(myData):
         n2 = n2[1:].split()[0]
         
         if n1 != n2:
-            print('Names do not match!',n1,n2)
+            print('Names do not match!',n1,n2, flush=True)
             sys.exit()
         
         if n1 in toDrop:
@@ -318,10 +318,10 @@ def filter_contam_illumina(myData):
     inFq2.close()
     outFq1.close()
     outFq2.close()
-    print('\nSearched for contamination in short reads')
+    print('\nSearched for contamination in short reads', flush=True)
     print('Total read pairs: %i' % (numDrop+numWrite) )
-    print('Removed: %i  %f' % (numDrop, numDrop/(numDrop+numWrite)))
-    print('Kept: %i  %f' % (numWrite, numWrite/(numDrop+numWrite)))
+    print('Removed: %i  %f' % (numDrop, numDrop/(numDrop+numWrite)), flush=True)
+    print('Kept: %i  %f' % (numWrite, numWrite/(numDrop+numWrite)), flush=True)
         
 #####################################################################
 def filter_contam_longread(myData):
@@ -331,13 +331,13 @@ def filter_contam_longread(myData):
     
     # check to see if already ran
     if os.path.isfile(myData['longReadFilt']) and os.path.getsize(myData['longReadFilt']) > 0:
-        print('Already ran long read filter contamination!')
+        print('Already ran long read filter contamination!', flush=True)
         return
     
     if myData['longreadtype'] == 'ont':
        mapX = 'map-ont'
     else:
-       print('uknown long read type, option not clear')
+       print('uknown long read type, option not clear', flush=True)
        print(myData['longreadtype'])
        sys.exit()
     
@@ -355,7 +355,7 @@ def filter_contam_longread(myData):
         if((pafLine['numMatch']/pafLine['qLen']) > 0.25):
             toDrop[pafLine['qName']] = 0
     inFile.close()
-    print('Read in %i names of long reads' % len(toDrop))
+    print('Read in %i names of long reads' % len(toDrop), flush=True)
     
     inFile = gzip.open(myData['longread'],'rt')
     outPass = gzip.open(myData['longReadFilt'],'wt')
@@ -382,18 +382,18 @@ def filter_contam_longread(myData):
     inFile.close()
     outPass.close()
     outFail.close()
-    print('\nSearched for contamination in long reads!')
+    print('\nSearched for contamination in long reads!', flush=True)
     print('Total long reads: %i' % (numDrop+numWrite) )
-    print('Removed: %i  %f' % (numDrop, numDrop/(numDrop+numWrite)))
-    print('Kept: %i  %f' % (numWrite, numWrite/(numDrop+numWrite)))
+    print('Removed: %i  %f' % (numDrop, numDrop/(numDrop+numWrite)), flush=True)
+    print('Kept: %i  %f' % (numWrite, numWrite/(numDrop+numWrite)), flush=True)
 #####################################################################
 def run_unicycler_assem(myData):
     myData['originalAssem'] = myData['outDirBase'] + 'assembly.fasta'
     myData['assemFa'] = myData['originalAssem']    
     if os.path.isfile(myData['originalAssem']) is True:
-        print('assembly exists, skipping run_unicycler_assem step!')
+        print('assembly exists, skipping run_unicycler_assem step!', flush=True)
         return        
-    print('\nstarting to run unicycler!')
+    print('\nstarting to run unicycler!', flush=True)
     cmd = 'unicycler -t %i -1 %s -2 %s -l %s -o %s' % (myData['numThreads'],myData['ilmFilt_1'],myData['ilmFilt_2'],myData['longReadFilt'],myData['outDirBase'])
     print(cmd)
     runCMD(cmd)
@@ -407,7 +407,7 @@ def do_rotate_circle(myData):
     print('make version without the target:',myData['doClean'])
     
     
-    print('\n*****\nNote: I am assuming there is a single circular contig and that the vector target is in the middle, not split\n*****\n')
+    print('\n*****\nNote: I am assuming there is a single circular contig and that the vector target is in the middle, not split\n*****\n', flush=True)
 
     # run blat of target vs assembly, to determine what the correct orientation is
     myData['blatOutFile'] = myData['assemFa'] + '.blatTMP'
@@ -445,7 +445,7 @@ def do_rotate_circle(myData):
 
     # check the size hit
     if(blatLine['qEnd'] - blatLine['qStart']) != blatLine['qSize']:
-        print('Did not account for whole length in single hit.  What to do???')
+        print('Did not account for whole length in single hit.  What to do???', flush=True)
         sys.exit()
 
     # for now, will assume that the vector sequence is not across the circle junction -- that would be a complication
@@ -472,16 +472,16 @@ def do_rotate_circle(myData):
 
     myData['rotatedFaBlatOutFile'] = myData['rotatedFa']+ '.blat'
     cmd = 'blat %s %s %s' % (myData['rotatedFa'],myData['targetFa'],myData['rotatedFaBlatOutFile'])
-    print(cmd)
+    print(cmd, flush=True)
     runCMD(cmd)
     blatLine = read_top_blat_line(myData['rotatedFaBlatOutFile'])
 
     if myData['doClean'] is True:
-        print('making version without the vector!')
-        print('query size',blatLine['qSize'])
-        print('target size',blatLine['tSize'])
-        print('q hit:',blatLine['qStart'],'-',blatLine['qEnd'])
-        print('t hit:',blatLine['tStart'],'-',blatLine['tEnd'])
+        print('making version without the vector!', flush=True)
+        print('query size',blatLine['qSize'], flush=True)
+        print('target size',blatLine['tSize'], flush=True)
+        print('q hit:',blatLine['qStart'],'-',blatLine['qEnd'], flush=True)
+        print('t hit:',blatLine['tStart'],'-',blatLine['tEnd'], flush=True)
     
         fastaSeqs = read_fasta_file_to_dict(myData['rotatedFa'])
         name = list(fastaSeqs.keys())[0]        

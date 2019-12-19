@@ -29,7 +29,7 @@ myData['rotatedCleanFa'] = myData['originalAssem'] + '.rotate.clean.fa'
 
 print('initial assembly:',myData['assemFa'])
 print('portion to set at start:',myData['targetFa'])
-print('make version without the target:',myData['doClean'])
+print('make version without the target:',myData['doClean'], flush=True)
 
 
 #assemtools3.check_prog_paths(myData)

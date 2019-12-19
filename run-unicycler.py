@@ -43,10 +43,10 @@ if myData['outDirBase'][-1] != '/':
 if os.path.isdir(myData['outDirBase']) is False:
     print('Output dir doest not exist, making it!')
     cmd = 'mkdir ' + myData['outDirBase']
-    print(cmd)
+    print(cmd, flush=True)
     assemtools3.runCMD(cmd)
 
-print('Will run with %i threads!' % myData['numThreads'])
+print('Will run with %i threads!' % myData['numThreads'], flush=True)
 assemtools3.check_prog_paths(myData)
 ###############################################################################
 
