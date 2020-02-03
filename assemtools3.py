@@ -126,17 +126,24 @@ def check_prog_paths(myData):
         sys.exit()
 
 #####################################################################
-# read top line of blat PSL file
+# update -- return line with highest number of matches
 def read_top_blat_line(pslFileName):
     inFile = open(pslFileName,'r')
     for i in range(0,5): # skip over header
         line = inFile.readline() 
-    line = inFile.readline()
+    bestLine = {}
+    bestLine['match'] = -1 # just take with match
+    while True:
+        line = inFile.readline()
+        if line == '':
+            break
+        line = line.rstrip()
+        line = line.split()
+        blatLine = parse_blat_psl_line(line)
+        if blatLine['match'] > bestLine['match']:
+            bestLine = blatLine    
     inFile.close()
-    line = line.rstrip()
-    line = line.split()
-    blatLine = parse_blat_psl_line(line)
-    return blatLine
+    return bestLine
 #####################################################################
 # assumes line is already list
 def parse_blat_psl_line(line):
@@ -450,6 +457,7 @@ def do_rotate_circle(myData):
     # check the size hit
     if(blatLine['qEnd'] - blatLine['qStart']) != blatLine['qSize']:
         print('Did not account for whole length in single hit.  What to do???', flush=True)
+        print(blatLine['qEnd'],blatLine['qStart'],blatLine['qEnd'] - blatLine['qStart'],blatLine['qSize'])
         sys.exit()
 
     # for now, will assume that the vector sequence is not across the circle junction -- that would be a complication
