@@ -26,6 +26,10 @@ myData['doClean'] = args.clean
 myData['rotatedFa'] = myData['originalAssem'] + '.rotate.fa'
 myData['rotatedCleanFa'] = myData['originalAssem'] + '.rotate.clean.fa'
 
+# just take name to use
+name = myData['assemFa'].split('/')[-1]
+name = name.split('.')[0]
+myData['name'] = name
 
 print('initial assembly:',myData['assemFa'])
 print('portion to set at start:',myData['targetFa'])
