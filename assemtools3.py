@@ -399,8 +399,12 @@ def run_unicycler_assem(myData):
     runCMD(cmd)
 #####################################################################
 def do_rotate_circle(myData):
-    myData['rotatedFa'] = myData['originalAssem'] + '.rotate.fa'
-    myData['rotatedCleanFa'] = myData['outDirBase'] + myData['name'] + '.fa'
+    
+    if 'rotatedFa' not in myData:
+        myData['rotatedFa'] = myData['originalAssem'] + '.rotate.fa'
+    
+    if 'rotatedCleanFa' not in myData:
+        myData['rotatedCleanFa'] = myData['outDirBase'] + myData['name'] + '.fa'
 
     print('initial assembly:',myData['assemFa'])
     print('portion to set at start:',myData['targetFa'])
